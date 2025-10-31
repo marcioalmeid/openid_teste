@@ -329,8 +329,24 @@ class AuthServiceOpenId {
     }
   }
 
+  /// Faz uma validação leve do token no servidor usando o endpoint userinfo
+  /// Retorna true se o token é válido, false caso contrário
+  Future<bool> _validateTokenWithServer(oidc.Credential credential) async {
+    try {
+      // Faz uma chamada leve ao endpoint userinfo do Keycloak
+      // Se o token foi revogado ou é inválido, esta chamada falhará
+      await credential.getUserInfo();
+      debugPrint('_validateTokenWithServer: Token válido no servidor');
+      return true;
+    } catch (e) {
+      debugPrint('_validateTokenWithServer: Token inválido ou revogado: $e');
+      return false;
+    }
+  }
+
   /// Verifica se o usuário está autenticado
   /// Valida se o token ainda é válido e tenta renová-lo se expirado
+  /// Faz validação leve no servidor para detectar tokens revogados
   Future<bool> isAuthenticated() async {
     try {
       // Tenta carregar o credential do storage se não estiver em memória
@@ -361,6 +377,13 @@ class AuthServiceOpenId {
             await credential.getTokenResponse(true); // forceRefresh
             await _saveTokens(credential);
             debugPrint('isAuthenticated: Token renovado com sucesso');
+            
+            // Valida o novo token no servidor
+            final isValid = await _validateTokenWithServer(credential);
+            if (!isValid) {
+              await logout();
+              return false;
+            }
             return true;
           } catch (e) {
             debugPrint('isAuthenticated: Erro ao renovar token: $e');
@@ -376,7 +399,15 @@ class AuthServiceOpenId {
         }
       }
 
-      // Token válido e não expirado
+      // Token válido e não expirado - faz validação leve no servidor
+      // para detectar se foi revogado mesmo sem estar expirado
+      final isValid = await _validateTokenWithServer(credential);
+      if (!isValid) {
+        debugPrint('isAuthenticated: Token revogado no servidor');
+        await logout();
+        return false;
+      }
+
       debugPrint('isAuthenticated: Usuário autenticado com token válido');
       return true;
     } catch (e, stackTrace) {
