@@ -7,8 +7,8 @@ import '../config/keycloak_config.dart';
 import 'package:openid_client/openid_client_io.dart' if (dart.library.html) 'package:openid_client/openid_client_browser.dart' as oidc;
 import 'package:url_launcher/url_launcher.dart';
 
-// Para web, importa dart:html para acessar window.sessionStorage  
-import 'dart:html' as html if (dart.library.html) 'dart:io';
+// Para web, importa package:web para acessar window.sessionStorage
+import 'package:web/web.dart' as web if (dart.library.html) 'dart:io';
 
 /// Implementação de autenticação usando openid_client
 /// Baseado em: https://medium.com/@rangika123.kanchana/keycloak-integration-for-flutter-web-using-openid-client-with-authorization-code-flow-489afeac6e9f
@@ -99,9 +99,9 @@ class AuthServiceOpenId {
     final client = oidc.Client(issuer, KeycloakConfig.clientId);
 
     // Obtém ou gera codeVerifier e state
-    final codeVerifier = html.window.sessionStorage["auth_code_verifier"] ?? _randomString(50);
-    final state = html.window.sessionStorage["auth_state"] ?? _randomString(20);
-    final responseUrl = html.window.sessionStorage["auth_callback_response_url"];
+    final codeVerifier = web.window.sessionStorage.getItem("auth_code_verifier") ?? _randomString(50);
+    final state = web.window.sessionStorage.getItem("auth_state") ?? _randomString(20);
+    final responseUrl = web.window.sessionStorage.getItem("auth_callback_response_url");
 
     // Cria o flow usando authorizationCodeWithPKCE
     final flow = oidc.Flow.authorizationCodeWithPKCE(
@@ -117,7 +117,7 @@ class AuthServiceOpenId {
     flow.redirectUri = redirectUri;
     
     debugPrint('Redirect URI configurado: $redirectUri');
-    debugPrint('URL atual completa: ${html.window.location.href}');
+    debugPrint('URL atual completa: ${web.window.location.href}');
     debugPrint('Redirect URI esperado no Keycloak: ${KeycloakConfig.redirectUrlWeb}');
 
     if (responseUrl != null && responseUrl.isNotEmpty) {
@@ -127,10 +127,10 @@ class AuthServiceOpenId {
         debugPrint('Chamando flow.callback com queryParams: ${responseUri.queryParameters}');
         final credentials = await flow.callback(responseUri.queryParameters);
         debugPrint('Credenciais obtidas com sucesso');
-        // Limpa os dados temporários do sessionStorage apenas após sucesso
-        html.window.sessionStorage.remove("auth_code_verifier");
-        html.window.sessionStorage.remove("auth_callback_response_url");
-        html.window.sessionStorage.remove("auth_state");
+        // Limpa os dados temporários do sessionStorage apenas após sucess
+        web.window.sessionStorage.removeItem("auth_code_verifier");
+        web.window.sessionStorage.removeItem("auth_callback_response_url");
+        web.window.sessionStorage.removeItem("auth_state");
         return credentials;
       } catch (e, stackTrace) {
         debugPrint('Erro ao processar callback no flow: $e');
@@ -140,10 +140,10 @@ class AuthServiceOpenId {
       }
     } else {
       // Inicia autenticação - redireciona para Keycloak
-      html.window.sessionStorage["auth_code_verifier"] = codeVerifier;
-      html.window.sessionStorage["auth_state"] = state;
+      web.window.sessionStorage.setItem("auth_code_verifier", codeVerifier);
+      web.window.sessionStorage.setItem("auth_state", state);
       final authorizationUrl = flow.authenticationUri;
-      html.window.location.href = authorizationUrl.toString();
+      web.window.location.href = authorizationUrl.toString();
       throw "Authenticating...";
     }
   }
@@ -227,7 +227,7 @@ class AuthServiceOpenId {
 
     try {
       // Verifica se há um callback response URL no sessionStorage
-      final responseUrl = html.window.sessionStorage["auth_callback_response_url"];
+      final responseUrl = web.window.sessionStorage.getItem("auth_callback_response_url");
       debugPrint('handleCallback chamado. responseUrl: $responseUrl');
       
       if (responseUrl != null && responseUrl.isNotEmpty) {
@@ -238,20 +238,20 @@ class AuthServiceOpenId {
           await _saveTokens(credential);
           debugPrint('Callback processado com sucesso - tokens salvos');
           // Limpa o sessionStorage após processar
-          html.window.sessionStorage.remove("auth_callback_response_url");
+          web.window.sessionStorage.removeItem("auth_callback_response_url");
           return true;
         } else {
           debugPrint('Erro: credencial retornou null após processar callback');
         }
       } else {
         // Tenta verificar diretamente na URL atual se não há sessionStorage
-        final currentUrl = html.window.location.href;
+        final currentUrl = web.window.location.href;
         debugPrint('Verificando URL atual: $currentUrl');
         if (currentUrl.contains('?code=') || currentUrl.contains('&code=')) {
           debugPrint('Código encontrado na URL, salvando no sessionStorage');
-          html.window.sessionStorage["auth_callback_response_url"] = currentUrl;
+          web.window.sessionStorage.setItem("auth_callback_response_url", currentUrl);
           // Limpa a URL
-          html.window.history.replaceState({}, '', html.window.location.pathname);
+          web.window.history.replaceState(null, '', web.window.location.pathname);
           // Tenta processar novamente na próxima chamada
           return false; // Retorna false para tentar novamente
         }
@@ -454,9 +454,9 @@ class AuthServiceOpenId {
       
       // Limpa sessionStorage na web
       if (kIsWeb) {
-        html.window.sessionStorage.remove("auth_code_verifier");
-        html.window.sessionStorage.remove("auth_callback_response_url");
-        html.window.sessionStorage.remove("auth_state");
+        web.window.sessionStorage.removeItem("auth_code_verifier");
+        web.window.sessionStorage.removeItem("auth_callback_response_url");
+        web.window.sessionStorage.removeItem("auth_state");
       }
       
       _credential = null;
