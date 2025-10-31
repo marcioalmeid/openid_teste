@@ -1,0 +1,16 @@
+**/.git
+**/.gitignore
+**/.dart_tool
+**/build
+**/android
+**/ios
+**/linux
+**/macos
+**/web
+**/windows
+**/test
+**/README.md
+**/analysis_options.yaml
+**/pubspec.lock
+**/pubspec.yaml
+
